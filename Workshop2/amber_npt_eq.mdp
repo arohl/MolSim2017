@@ -17,19 +17,19 @@ nstfout		         =    0	; do not save forces
 nstenergy	         = 1000	; save energies every 2.0 ps
 nstlog		         = 1000	; update log file every 2.0 ps
 
-; Bond parameters
+; Bond constraints
 constraint_algorithm    = lincs	    ; holonomic constraints 
 constraints	            = all-bonds	; all bonds (even heavy atom-H bonds) constrained
 lincs_iter	            = 1		    ; accuracy of LINCS
 lincs_order	            = 4		    ; also related to accuracy
 
-; Neighborsearching
+; Neighbour searching
 cutoff-scheme = Verlet
 ns_type		    = grid	; search neighboring grid cells
 nstlist		    = 10		; 20 fs, largely irrelevant with Verlet
 rlist         = 1.2   ; short-range neighbourlist cutoff (in nm)
 
-; van der Waals settings
+; van der Waals
 vdwtype       = cutoff ; cut off vdw after rvdw (don't scale or shift)
 vdw-modifier  = force-switch ; force, not potential, switch
 rvdw		      = 1.2		; short-range van der Waals cutoff (in nm)
