@@ -1,0 +1,160 @@
+#########################################################################################################
+# LAMMPS input file template
+# Default variables
+#########################################################################################################
+
+print "Setting default variables"
+variable i0 equal 15973           
+variable i1 equal 96248           
+
+#########################################################################################################
+# Units metal : eV       - ps - angstrom - bar
+#########################################################################################################
+
+units metal
+
+#########################################################################################################
+# Input coordinates and force field
+#########################################################################################################
+
+variable inpfile  string coord.lmp      # input filename
+variable fffile   string forcefield.lmp# forcefield filename
+
+
+#########################################################################################################
+# Molecular dynamics parameters
+#########################################################################################################
+
+variable ens     string      npt        # ensemble (nve, nph, nvt, npt)
+variable tst     string     csvr        # ensemble (nh, ber, lang, csvr, csld, vres)
+variable ts       equal        0.002    # simulation timestep (time units)
+variable nequil   equal   100000        # number of equilibration steps
+variable nsteps   equal   100000        # number of MD steps 
+
+variable temp     equal        130       # starting temperature 
+variable trel     equal        0.1      # thermostat relaxation time
+variable tscale   equal        1        # frequency - vel rescaling only
+variable deltat   equal       10        # temperature window - vel rescaling only
+variable fraction equal        1.0      # fraction - vel rescaling only
+
+variable npttype  string       iso        # type of NPT (iso, aniso, tri, z...)
+variable pres     equal        1.01325  # pressure (NPT runs only)
+variable prel     equal        1.0      # barostat relaxation time
+
+#########################################################################################################
+# Output parameters
+#########################################################################################################
+
+variable traj    string      dcd        # trajectory type (dcd, xtc, xyz)
+variable ntraj    equal     1000        # trajectory output frequency - all system
+variable nthermo  equal     1000        # thermodynamic data output frequency 
+
+#########################################################################################################
+# Energy minimisation parameters
+#########################################################################################################
+
+variable mtraj    equal       -1        # trajectory output frequency - all system
+variable etol     equal     1e-6        # % change in energy
+variable ftol     equal     1e-6        # max force threshold (force units)
+variable maxiter  equal     1000        # max # of iterations
+
+
+#########################################################################################################
+# 3D periodic simulation
+#########################################################################################################
+
+boundary p p p
+
+#########################################################################################################
+# Atom style - charge/vdw/bonded
+#########################################################################################################
+
+atom_style full
+
+#########################################################################################################
+# Read the input structure
+#########################################################################################################
+
+read_data ${inpfile}
+
+# box tilt large
+#if "${run_id} == 0" then "read_data ${inpfile}" else "read_restart ${resfile}"
+# change_box all triclinic
+
+#########################################################################################################
+# Force field 
+#########################################################################################################
+
+include ${fffile}
+
+#########################################################################################################
+# Thermodynamic output
+#########################################################################################################
+
+thermo_style custom step time pe temp press vol cella cellb cellc 
+thermo ${nthermo}
+thermo_modify flush yes
+
+#########################################################################################################
+# Eneergy minimisation
+#########################################################################################################
+
+  print "Doing CG minimisation"
+  min_style cg
+  min_modify line quadratic
+  minimize ${etol} ${ftol} ${maxiter} ${maxiter}
+  reset_timestep 0
+
+#########################################################################################################
+# Timestep in ps
+#########################################################################################################
+
+timestep ${ts}
+
+
+#########################################################################################################
+# Trajectory output
+#########################################################################################################
+dump traj all ${traj} ${ntraj} trajectory.${traj}
+
+#########################################################################################################
+# Generate initial velocities
+#########################################################################################################
+
+velocity all create ${temp} ${i0} mom yes dist gaussian
+
+#########################################################################################################
+# Remove the centre of mass motion
+#########################################################################################################
+
+fix com all momentum 1000 linear 1 1 1
+
+#########################################################################################################
+# Ensembles (0=nve, 1=nvt, 2=npt, 3=ber, 4=lang, 5=stoc, 6=vres)
+#########################################################################################################
+
+
+# nve
+  if "${ens} == nve" then "fix md all nve"
+  if "${ens} == nph" then "fix md all nph ${npttype} ${pres} ${pres} ${prel} tchain 5 pchain 5 mtk yes"
+# Nose-Hoover
+  if "${ens} == nvt && ${tst} == nh" then "fix md all nvt temp ${temp} ${temp} ${trel} tchain 5"
+  if "${ens} == npt && ${tst} == nh" then "fix md all npt temp ${temp} ${temp} ${trel} ${npttype} ${pres} ${pres} ${prel} tchain 5 pchain 5 mtk yes"
+# Other thermostats
+  if "${ens} == nvt && ${tst} != nh" then "fix md all nve"
+  if "${ens} == npt && ${tst} != nh" then "fix md all nph ${npttype} ${pres} ${pres} ${prel} tchain 5 pchain 5 mtk yes"
+  if "${tst} == ber"  then "fix tst all temp/berendsen ${temp} ${temp} ${trel}"
+  if "${tst} == lan"  then "fix tst all langevin ${temp} ${temp} ${trel} ${i1} tally yes zero yes gjf yes"
+  if "${tst} == csvr" then "fix tst all temp/csvr ${temp} ${temp} ${trel} ${i1}"
+  if "${tst} == csld" then "fix tst all temp/csld ${temp} ${temp} ${trel} ${i1}"
+  if "${tst} == res"  then "fix tst all temp/rescale ${tscale} ${temp} ${temp} ${deltat} ${fraction}"
+
+label end_ens
+
+
+#########################################################################################################
+# Plain Molecular Dynamics
+#########################################################################################################
+
+  print 'Doing Molecular dynamics'
+  run ${nsteps}
